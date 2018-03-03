@@ -1,0 +1,83 @@
+%%
+%term
+    EOF 
+  | ID of string
+  | INT of int | STRING of string 
+  | COMMA | COLON | SEMICOLON | LPAREN | RPAREN | LBRACK | RBRACK 
+  | LBRACE | RBRACE | DOT 
+  | PLUS | MINUS | TIMES | DIVIDE | EQ | NEQ | LT | LE | GT | GE | UMINUS
+  | AND | OR | ASSIGN
+  | ARRAY | IF | THEN | ELSE | WHILE | FOR | TO | DO | LET | IN | END | OF 
+  | BREAK | NIL
+  | FUNCTION | VAR | TYPE 
+
+%nonterm exp | program | lvalue | sequence | exp_star_semi | exp_star_comma
+       | record_fields | record_fields_mult  
+
+%pos int
+%verbose
+%start program
+%eop EOF
+%noshift EOF
+
+%name Tiger
+
+%keyword WHILE FOR TO BREAK LET IN END FUNCTION VAR TYPE ARRAY IF THEN ELSE 
+	DO OF NIL
+
+%prefer THEN ELSE LPAREN
+
+%value ID ("bogus")
+%value INT (1)
+%value STRING ("")
+
+%left OR
+%left AND
+%nonassoc EQ NEQ GT LT GE LE
+%left PLUS MINUS
+%left TIMES DIVIDE
+%left UMINUS
+
+%%
+
+program	: exp				()
+	
+exp: lvalue                             ()
+   | sequence                           ()
+   | LPAREN RPAREN                      ((* No Value *))
+   | INT                                ()
+   | MINUS exp  %prec UMINUS            ((* Negation *))
+   | STRING                             ()
+   | ID LPAREN exp_star_comma RPAREN    ((* Function call *))
+   | exp TIMES exp                         ((* Arithmetic & Comparison *))
+   | exp DIVIDE exp                         ((* Arithmetic & Comparison *))
+   | exp PLUS exp                         ((* Arithmetic & Comparison *))
+   | exp MINUS exp                         ((* Arithmetic & Comparison *))
+   | exp EQ exp                         ((* Arithmetic & Comparison *))
+   | exp NEQ exp                         ((* Arithmetic & Comparison *))
+   | exp LT exp                         ((* Arithmetic & Comparison *))
+   | exp LE exp                         ((* Arithmetic & Comparison *))
+   | exp GT exp                         ((* Arithmetic & Comparison *))
+   | exp GE exp                         ((* Arithmetic & Comparison *))
+   | exp AND exp                         ((* Arithmetic & Comparison *))
+   | exp OR exp                         ((* Arithmetic & Comparison *))
+   | ID LBRACE record_fields RBRACE     ((* Record Creation *))
+
+
+lvalue : ID                             ((* Variable *))
+       | lvalue DOT ID                  ((* Record Field *))
+       | lvalue LBRACK exp RBRACK       ((* Array subscript *))
+
+sequence : LPAREN exp SEMICOLON exp SEMICOLON exp_star_semi RPAREN  ((* Sequence of two or more expressions *))
+
+exp_star_semi : exp SEMICOLON  ()
+              |                ()
+
+exp_star_comma : exp COMMA     ()
+               |               ()
+
+record_fields : ID EQ exp record_fields_mult      ()
+              |                                   ()
+
+record_fields_mult : COMMA ID EQ exp ()
+                   |                 ()
