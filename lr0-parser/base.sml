@@ -1,9 +1,19 @@
 (* LR(0) Parser for Grammer 3.20 *)
-(* TODO: add grammar *)
+
 datatype terminal = LPAREN | RPAREN | ID | COMMA
 datatype nonterminal = START | S | L | ACCEPT
-
 datatype symbol = TSymbol of terminal | NSymbol of nonterminal
+datatype action = GOTO of int | SHIFT of int | A_ACCEPT | REDUCE of int  
+
+(* Grammar rule *)
+type rule = nonterminal * symbol list
+type item = rule * int
+type state = item list
+(* Parsing DFA edge *)
+type edge = state * symbol * state
+(* Value inside a parsing table *)
+type cell = int * symbol * action
+
 val symbols = [
   TSymbol LPAREN,
   TSymbol RPAREN,
@@ -15,13 +25,6 @@ val symbols = [
   NSymbol ACCEPT
 ]
 
-datatype action = GOTO of int | SHIFT of int | A_ACCEPT | REDUCE of int  
-type rule = nonterminal * symbol list
-type item = rule * int
-type state = item list
-type edge = state * symbol * state
-type cell = int * symbol * action
-
 val rule0 = (START, [NSymbol S, NSymbol ACCEPT])
 val rule1 = (S, [TSymbol LPAREN, NSymbol L, TSymbol RPAREN])
 val rule2 = (S, [TSymbol ID])
@@ -29,20 +32,26 @@ val rule3 = (L, [NSymbol S])
 val rule4 = (L, [NSymbol L, TSymbol COMMA, NSymbol S]) 
 val rules = [rule0, rule1, rule2, rule3, rule4];
 
-(* Helper functions *)
+(* ----- Start Helper Functions ----- *)
+(* Get either sid eof the given rule *)
 fun rhs ((_, r):rule):symbol list = r
 fun lhs ((l, _):rule):nonterminal = l
 
+(* Get the rule or position from an item *)
 fun getRule ((r, _):item):rule = r
 fun getPos  ((_, p):item):int = p
+
+(* Get the location of a rule in a list of rules *)
 fun get_rule_id i_rule []      count = 99
   | get_rule_id i_rule (x::xs) count = 
     case (i_rule = x) of
        true  => count
      | false => get_rule_id i_rule xs (count + 1)
 
+(* Flatten a list of lists into a singular list *)
 fun flat xs = List.foldr op@ [] xs
 
+(* Remove duplicate values from a list *)
 fun unique' x []      = []
   | unique' x (y::ys) = 
     case x = y of
@@ -56,24 +65,29 @@ fun unique []     = []
         x::(unique a)
       end
 
+(* Insert an item into a specific location in a list *)
 fun idx_list_insert x ys 0        = x::ys
   | idx_list_insert x [] idx      = x::[]
   | idx_list_insert x (y::ys) idx = y::(idx_list_insert x ys (idx-1))
 
+(* Increase the position of an item *)
 fun inc_item_pos (i_rule, idx):item = (i_rule, idx+1)
 
+(* Zip two lists together, filling the shorter list with an empty symbol *)
 fun zip_make_eq empty []      []      = []
   | zip_make_eq empty []      (y::ys) = (empty, y)::(zip_make_eq empty [] ys)
   | zip_make_eq empty (x::xs) []      = (x, empty)::(zip_make_eq empty xs [])
   | zip_make_eq empty (x::xs) (y::ys) = (x, y)::(zip_make_eq empty xs ys)
 
+(* Transform a list of strings into a singular string *)
 fun join_string_list []      = ""
   | join_string_list (x::[]) = x
   | join_string_list (x::xs) = x ^ (join_string_list xs)
 
-(* List equality ops *)
+(* --- Start List Equality Operations --- *)
 fun list_contains x xs = List.exists (fn y => y = x) xs
 
+(* Check if first list is a subset of the second list *)
 fun list_subset xs ys =
   let 
     val all_contain = map (fn x => list_contains x ys) xs
@@ -81,6 +95,7 @@ fun list_subset xs ys =
     List.foldr (fn (x, y) => x andalso y) true all_contain
   end
 
+(* Check if two lists are equal by checking if they're both subsets of each other *)
 fun lists_eq xs ys =
   let
     val same_size = (List.length xs) = (List.length ys)
@@ -89,6 +104,7 @@ fun lists_eq xs ys =
        true => (list_subset xs ys) andalso (list_subset ys xs)
      | false => false
   end
+(* --- End List Equality Operations --- *)
 
 (* Next symbol in item *)
 fun nextUp item = 
@@ -101,13 +117,14 @@ fun nextUp item =
      | false => NONE
   end
 
-(* Create starting item for the given rule if it starts with the given symbol *)
+(* Create starting item for the given rule if LHS = given symbol *)
 fun getItem i_symbol i_rule =
   case lhs(i_rule) = i_symbol of
      true  => SOME (i_rule, 0)
    | false => NONE
 
 (* Create a list of all items for the given symbol *)
+(* NOTE: rules should be passed in as argument [or should it...] *)
 fun getItems (i_symbol:nonterminal):state =
   let
     val opt_items = map (getItem i_symbol) rules
@@ -128,6 +145,7 @@ fun closure' (i_item:item):state =
       | false => [i_item]
   end
 
+(* Create a closure for the given state *)
 fun closure (i_state:state):state =
   let
     val new_state = unique (flat (map (closure') i_state))
@@ -177,6 +195,7 @@ fun reachable_states_and_their_edges i_state =
    (state_list, edge_list)
   end
 
+(* Build lists of all states and all edges between them *)
 fun get_all_states_and_edges (state_list:state list) edge_list =
   let
     val states_and_edges = map reachable_states_and_their_edges state_list
@@ -190,15 +209,19 @@ fun get_all_states_and_edges (state_list:state list) edge_list =
      | false => get_all_states_and_edges new_state_list new_edge_list
   end
 
+(* Build state => id mappings *)
 fun map_states_to_ids []      id = []
   | map_states_to_ids (x::xs) id = (id, x)::(map_states_to_ids xs (id+1))
 
+(* Get a mapped_state given an state_id *)
 fun get_mapped_state []              id = NONE
   | get_mapped_state ((i_id, s)::xs) id = if i_id = id then SOME s else get_mapped_state xs id
 
+(* Get a state_id given a mapped_state *)
 fun get_state_id []              s = NONE
   | get_state_id ((id, i_s)::xs) s = if i_s = s then SOME id else get_state_id xs s
 
+(* Get all shifts & gotos in a parsing table *)
 fun construct_parsing_table_shift_goto mapped_states edge_list =
   let
     val some_shifts_and_gotos = map (fn (i, s, j) =>
@@ -221,6 +244,7 @@ fun construct_parsing_table_shift_goto mapped_states edge_list =
     map valOf (List.filter isSome some_shifts_and_gotos)
   end
 
+(* Get all accepts in a parsing table *)
 fun construct_parsing_table_accept mapped_states =
   let
     val accepted_states = map (fn (id, i_state) =>
@@ -236,6 +260,7 @@ fun construct_parsing_table_accept mapped_states =
     map valOf (List.filter (isSome) (flat accepted_states))
   end 
 
+(* Get all reduces in a parsing table *)
 fun construct_parsing_table_reduce mapped_states =
   let
     val opt_reduce_states = map (fn (id, i_state) =>
@@ -252,13 +277,15 @@ fun construct_parsing_table_reduce mapped_states =
     map valOf some_reduce_states
   end
 
+(* Given a state and a symbol, return what stack action to take *)
 fun get_table_action i_state_id i_symbol []    = NONE
   | get_table_action i_state_id i_symbol ((z_state_id, z_symbol, z_action)::cells) =
       case (i_state_id = z_state_id) andalso (i_symbol = z_symbol) of
          true  => SOME z_action
        | false => get_table_action i_state_id i_symbol cells
 
-(* Print functions*)
+(* Print functions *)
+(* NOTE: some return strings, others print outright [probably should all return strings...] *)
 fun nonterminal_to_string i_nonterminal =
   case i_nonterminal of
       START  => "S'"
