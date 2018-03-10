@@ -11,8 +11,13 @@
   | BREAK | NIL
   | FUNCTION | VAR | TYPE 
 
-%nonterm exp | program | lvalue | sequence | exp_star_semi | exp_star_comma
-       | record_fields | record_fields_mult  
+%nonterm exp | program 
+       | sequence | exp_star_semi | exp_star_comma
+       | record_fields | record_fields_mult
+       | decs | dec | tydec | vardec | fundec
+       | ty | tyfields | tyfield_list
+       | lvalue | lvalue'
+       | arith_ops | comp_ops
 
 %pos int
 %verbose
@@ -31,6 +36,7 @@
 %value INT (1)
 %value STRING ("")
 
+%nonassoc ASSIGN
 %left OR
 %left AND
 %nonassoc EQ NEQ GT LT GE LE
@@ -40,40 +46,50 @@
 
 %%
 
-program	: exp				()
+program	: exp        ()
 	
-exp: lvalue                             ()
-   | sequence                           ()
-   | LPAREN RPAREN                      ((* No Value *))
-   | INT                                ()
-   | MINUS exp  %prec UMINUS            ((* Negation *))
-   | STRING                             ()
-   | ID LPAREN exp_star_comma RPAREN    ((* Function call *))
-   | exp TIMES exp                         ((* Arithmetic & Comparison *))
-   | exp DIVIDE exp                         ((* Arithmetic & Comparison *))
-   | exp PLUS exp                         ((* Arithmetic & Comparison *))
-   | exp MINUS exp                         ((* Arithmetic & Comparison *))
-   | exp EQ exp                         ((* Arithmetic & Comparison *))
-   | exp NEQ exp                         ((* Arithmetic & Comparison *))
-   | exp LT exp                         ((* Arithmetic & Comparison *))
-   | exp LE exp                         ((* Arithmetic & Comparison *))
-   | exp GT exp                         ((* Arithmetic & Comparison *))
-   | exp GE exp                         ((* Arithmetic & Comparison *))
-   | exp AND exp                         ((* Arithmetic & Comparison *))
-   | exp OR exp                         ((* Arithmetic & Comparison *))
-   | ID LBRACE record_fields RBRACE     ((* Record Creation *))
+exp : LET decs IN exp_star_semi END   ((* Let *)) 
+   | sequence                         ()
+   | LPAREN RPAREN                    ((* No Value *))
+   | LPAREN exp RPAREN                ((* Parenthesis *))
+   | STRING                           ()
+   | IF exp THEN exp ELSE exp         ()
+   | IF exp THEN exp                  ()
+   | ID LBRACE record_fields RBRACE   ((* Record Creation *))
+   | ID LBRACK exp RBRACK OF exp      ((* Array Creation *))
+   | ID LPAREN exp_star_comma RPAREN  ((* Function call *))
+   | lvalue ASSIGN exp                ((* Lvalue *))
+   | lvalue                  ()
+   | WHILE exp DO exp                 ((* While *))
+   | FOR exp ASSIGN exp TO exp        ((* For *))
+   | BREAK ()
+   | arith_ops ()
+   | comp_ops ()
+   | INT ()
+   | MINUS exp %prec UMINUS    ()
 
+arith_ops : exp PLUS exp ()
+          | exp TIMES exp ()
+          | exp DIVIDE exp ()
+          | exp MINUS exp ()
 
-lvalue : ID                             ((* Variable *))
-       | lvalue DOT ID                  ((* Record Field *))
-       | lvalue LBRACK exp RBRACK       ((* Array subscript *))
+comp_ops : exp EQ exp ()
+         | exp NEQ exp ()
+         | exp LT exp ()
+         | exp LE exp ()
+         | exp GT exp ()
+         | exp GE exp ()
 
+lvalue  : ID            ()
+        | lvalue DOT ID ()
+        | lvalue LBRACK exp RBRACK ()
+        
 sequence : LPAREN exp SEMICOLON exp SEMICOLON exp_star_semi RPAREN  ((* Sequence of two or more expressions *))
 
-exp_star_semi : exp SEMICOLON  ()
+exp_star_semi : exp SEMICOLON exp_star_semi ()
               |                ()
 
-exp_star_comma : exp COMMA     ()
+exp_star_comma : exp COMMA  exp_star_comma  ()
                |               ()
 
 record_fields : ID EQ exp record_fields_mult      ()
@@ -81,3 +97,27 @@ record_fields : ID EQ exp record_fields_mult      ()
 
 record_fields_mult : COMMA ID EQ exp ()
                    |                 ()
+
+decs : dec decs              ()
+     |                       ()
+
+dec : tydec                  ()
+    | vardec                 ()
+    | fundec                 ()
+
+tydec : TYPE ID EQ ty        ()
+
+ty : ID                      ()
+   | LBRACE tyfields RBRACE  ()
+
+tyfields : ID COLON ID tyfield_list ()
+         |                          ()
+
+tyfield_list : COMMA ID COLON ID tyfield_list ()
+             |                                ()
+
+vardec : VAR ID ASSIGN exp                    ()
+       | VAR ID COLON ID ASSIGN exp           ()
+
+fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp          ()
+       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp ()
