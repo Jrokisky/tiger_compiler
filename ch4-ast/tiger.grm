@@ -45,6 +45,7 @@ fun buildLVal (lval, pos, h::t) =
        | lvalue' of lvalPart list
        | arith_ops of A.exp
        | comp_ops of A.exp
+       | bool_ops of A.exp
 
 %pos int
 %verbose
@@ -93,6 +94,7 @@ exp : LET decs IN sequenceExp END     (A.LetExp {decs=decs, body=(A.SeqExp seque
    | BREAK                            (A.BreakExp(BREAKleft))
    | arith_ops                        (arith_ops)
    | comp_ops                         (comp_ops)
+   | bool_ops                         (bool_ops)
    | INT                              (A.IntExp(INT))
    | MINUS exp %prec UMINUS           (A.OpExp {left=A.IntExp(0), oper=A.MinusOp, right=exp, pos=MINUSleft})
 
@@ -107,6 +109,9 @@ comp_ops : exp EQ exp      (A.OpExp {left=exp1, oper=A.EqOp, right=exp2, pos=EQl
          | exp LE exp      (A.OpExp {left=exp1, oper=A.LeOp, right=exp2, pos=LEleft})
          | exp GT exp      (A.OpExp {left=exp1, oper=A.GtOp, right=exp2, pos=GTleft})
          | exp GE exp      (A.OpExp {left=exp1, oper=A.GeOp, right=exp2, pos=GEleft})
+
+bool_ops : exp AND exp      (A.IfExp{test=exp1, then'=exp2, else'=(SOME (A.IntExp(0))), pos=ANDleft})
+         | exp OR exp       (A.IfExp{test=exp1, then'=(A.IntExp(1)), else'=(SOME exp2), pos=ORleft})
 
 lvalue  : ID lvalue'                (buildLVal ((A.SimpleVar ((Symbol.symbol ID), IDleft)), IDleft, lvalue'))
 
