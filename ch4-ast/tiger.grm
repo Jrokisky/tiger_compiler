@@ -19,6 +19,7 @@ structure A = Absyn
        | sequenceExp of (A.exp * pos) list
        | exp_star_semi of (A.exp * pos) list 
        | exp_star_comma of A.exp list
+       | exp_star_comma_tail of A.exp list
        | record_fields of (A.symbol * A.exp * pos) list
        | record_fields_mult of (A.symbol * A.exp * pos) list
        | decs of A.dec list
@@ -107,8 +108,11 @@ sequenceExp : exp exp_star_semi  ((exp1, exp1left) :: exp_star_semi)
 exp_star_semi : SEMICOLON exp exp_star_semi ((exp1, exp1left) :: exp_star_semi)
               |                ([])
 
-exp_star_comma : exp COMMA exp_star_comma  (exp :: exp_star_comma)
-               |               (nil)
+exp_star_comma : exp exp_star_comma_tail  (exp :: exp_star_comma_tail)
+               |                          (nil)
+
+exp_star_comma_tail : COMMA exp exp_star_comma_tail  (exp :: exp_star_comma_tail)
+                    |               (nil)
 
 record_fields : ID EQ exp record_fields_mult    ((Symbol.symbol ID, exp, EQleft) :: record_fields_mult)
               |                                 (nil)
