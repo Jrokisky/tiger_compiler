@@ -1,4 +1,8 @@
-structure Parse : sig val parse : string -> Absyn.exp  end =
+structure Parse : sig 
+  val parse : string -> Absyn.exp  
+  val test_files : string list
+  val prefix : string -> string
+end =
 struct 
   structure TigerLrVals = TigerLrValsFun(structure Token = LrParser.Token)
   structure Lex = TigerLexFun(structure Tokens = TigerLrVals.Tokens)
@@ -15,6 +19,10 @@ struct
        in TextIO.closeIn file;
 	   absyn
       end handle LrParser.ParseError => raise ErrorMsg.Error
+
+  val t = List.tabulate(48, fn x => x+1)
+  fun prefix str =  "../test_programs/test" ^ str ^ ".tig"
+  val test_files = map (fn x => prefix (Int.toString x)) t
 
 end
 
