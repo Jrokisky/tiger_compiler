@@ -1,5 +1,14 @@
 structure A = Absyn
 
+datatype lvalPart = Field of Symbol.symbol
+                  | Subscript of A.exp
+
+fun buildLVal (lval, pos, h::t) =
+    (case h of
+        Field s     => buildLVal ((A.FieldVar (lval, s, pos)), pos, t)
+      | Subscript e => buildLVal ((A.SubscriptVar (lval, e, pos)), pos, t))
+  | buildLVal (lval, _, nil)    = lval
+
 %%
 %term
     EOF 
@@ -33,6 +42,7 @@ structure A = Absyn
        | tyfields of A.field list
        | tyfield_list of A.field list
        | lvalue of A.var
+       | lvalue' of lvalPart list
        | arith_ops of A.exp
        | comp_ops of A.exp
 
@@ -68,6 +78,7 @@ program	: exp                         (exp)
 exp : LET decs IN sequenceExp END     (A.LetExp {decs=decs, body=(A.SeqExp sequenceExp), pos=LETleft}) 
     | sequence                        (sequence)
    | LPAREN RPAREN                    (A.NilExp)
+   | NIL                              (A.NilExp)
    | LPAREN exp RPAREN                (exp)
    | STRING                           (A.StringExp(STRING, STRINGleft))
    | IF exp THEN exp ELSE exp         (A.IfExp{test=exp1, then'=exp2, else'=(SOME exp3), pos=IFleft})
@@ -97,9 +108,11 @@ comp_ops : exp EQ exp      (A.OpExp {left=exp1, oper=A.EqOp, right=exp2, pos=EQl
          | exp GT exp      (A.OpExp {left=exp1, oper=A.GtOp, right=exp2, pos=GTleft})
          | exp GE exp      (A.OpExp {left=exp1, oper=A.GeOp, right=exp2, pos=GEleft})
 
-lvalue  : ID                       (A.SimpleVar ((Symbol.symbol ID), IDleft))
-        | lvalue DOT ID            (A.FieldVar (lvalue, (Symbol.symbol ID), lvalueleft))
-        | lvalue LBRACK exp RBRACK (A.SubscriptVar (lvalue, exp, lvalueleft))
+lvalue  : ID lvalue'                (buildLVal ((A.SimpleVar ((Symbol.symbol ID), IDleft)), IDleft, lvalue'))
+
+lvalue' : DOT ID lvalue'            ((Field(Symbol.symbol ID))::lvalue')
+        | LBRACK exp RBRACK lvalue' (Subscript(exp)::lvalue')
+        |                           (nil)
         
 sequence : LPAREN sequenceExp RPAREN  (A.SeqExp sequenceExp)
 
